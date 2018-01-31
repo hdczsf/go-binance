@@ -43,7 +43,102 @@ func (as *apiService) Time() (time.Time, error) {
 	}
 	return t, nil
 }
+func (as *apiService) ExchangeInfo() (*ExchangeInfo, error) {
+	params := make(map[string]string)
+	res, err := as.request("GET", "api/v1/exchangeInfo", params, false, false)
+	if err != nil {
+		return nil, err
+	}
+	textRes, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to read response from Time")
+	}
+	defer res.Body.Close()
+	var jsonInfo struct {
+		Timezone        string `json:"timezone"`
+		ServerTime      int64  `json:"serverTime"`
+		RateLimits      []*RateLimit
+		ExchangeFilters []interface{} `json:"exchangeFilters"`
+		Symbols         []struct {
+			Symbol             string   `json:"symbol"`
+			Status             string   `json:"status"`
+			BaseAsset          string   `json:"baseAsset"`
+			BaseAssetPrecision int      `json:"baseAssetPrecision"`
+			QuoteAsset         string   `json:"quoteAsset"`
+			QuotePrecision     int      `json:"quotePrecision"`
+			OrderTypes         []string `json:"orderTypes"`
+			IcebergAllowed     bool     `json:"icebergAllowed"`
+			Filters            []struct {
+				FilterType  string `json:"filterType"`
+				MinPrice    string `json:"minPrice,omitempty"`
+				MaxPrice    string `json:"maxPrice,omitempty"`
+				TickSize    string `json:"tickSize,omitempty"`
+				MinQty      string `json:"minQty,omitempty"`
+				MaxQty      string `json:"maxQty,omitempty"`
+				StepSize    string `json:"stepSize,omitempty"`
+				MinNotional string `json:"minNotional,omitempty"`
+			} `json:"filters"`
+		} `json:"symbols"`
+	}
+	if err := json.Unmarshal(textRes, &jsonInfo); err != nil {
+		return nil, errors.Wrap(err, "timeResponse unmarshal failed")
+	}
+	exInfo := &ExchangeInfo{}
+	exInfo.Timezone = jsonInfo.Timezone
+	exInfo.ServerTime = time.Unix(0, jsonInfo.ServerTime)
+	exInfo.RateLimits = jsonInfo.RateLimits
+	exInfo.ExchangeFilters = jsonInfo.ExchangeFilters
+	exInfo.Symbols = map[string]*SymbolInfo{}
+	for _, symbol := range jsonInfo.Symbols {
+		syinfo := &SymbolInfo{
+			Symbol:             symbol.Symbol,
+			Status:             symbol.Status,
+			BaseAsset:          symbol.BaseAsset,
+			BaseAssetPrecision: symbol.BaseAssetPrecision,
+			QuoteAsset:         symbol.QuoteAsset,
+			QuotePrecision:     symbol.QuotePrecision,
+			OrderTypes:         symbol.OrderTypes,
+			IcebergAllowed:     symbol.IcebergAllowed,
+		}
+		syinfo.Filters=map[string]*FilterInfo{}
+		for _,filter:=range symbol.Filters{
 
+			finfo:=&FilterInfo{FilterType:filter.FilterType}
+			finfo.MaxPrice,err=strconv.ParseFloat(filter.MaxPrice,64)
+            if err!=nil{
+				finfo.MaxPrice=0.0
+			}
+			finfo.MaxQty,err=strconv.ParseFloat(filter.MaxQty,64)
+			if err!=nil{
+				finfo.MaxQty=0.0
+			}
+			finfo.MinNotional,err=strconv.ParseFloat(filter.MinNotional,64)
+			if err!=nil{
+				finfo.MinNotional=0.0
+			}
+			finfo.MinPrice,err=strconv.ParseFloat(filter.MinPrice,64)
+			if err!=nil{
+				finfo.MinPrice=0.0
+			}
+			finfo.MinQty,err=strconv.ParseFloat(filter.MinQty,64)
+			if err!=nil{
+				finfo.MinQty=0.0
+			}
+			finfo.StepSize,err=strconv.ParseFloat(filter.StepSize,64)
+			if err!=nil{
+				finfo.StepSize=0.0
+			}
+
+			finfo.TickSize,err=strconv.ParseFloat(filter.TickSize,64)
+			if err!=nil{
+				finfo.TickSize=0.0
+			}
+			syinfo.Filters[finfo.FilterType]=finfo
+		}
+		exInfo.Symbols[syinfo.Symbol]=syinfo
+	}
+	return exInfo, nil
+}
 func (as *apiService) OrderBook(obr OrderBookRequest) (*OrderBook, error) {
 	params := make(map[string]string)
 	params["symbol"] = obr.Symbol

@@ -18,6 +18,7 @@ type Binance interface {
 	Ping() error
 	// Time returns server time.
 	Time() (time.Time, error)
+	ExchangeInfo() (*ExchangeInfo, error)
 	// OrderBook returns list of orders.
 	OrderBook(obr OrderBookRequest) (*OrderBook, error)
 	// Trades returns recent list of trades.
@@ -101,7 +102,9 @@ func (b *binance) Ping() error {
 func (b *binance) Time() (time.Time, error) {
 	return b.Service.Time()
 }
-
+func (b *binance) ExchangeInfo() (*ExchangeInfo, error) {
+	return b.Service.ExchangeInfo()
+}
 // OrderBook represents Bids and Asks.
 type OrderBook struct {
 	LastUpdateID int `json:"lastUpdateId"`
@@ -569,4 +572,40 @@ type UserDataWebsocketRequest struct {
 
 func (b *binance) UserDataWebsocket(udwr UserDataWebsocketRequest) (chan *AccountEvent, chan struct{}, error) {
 	return b.Service.UserDataWebsocket(udwr)
+}
+
+type RateLimit struct {
+	RateLimitType string `json:"rateLimitType"`
+	Interval      string `json:"interval"`
+	Limit         int    `json:"limit"`
+}
+
+type FilterInfo struct {
+	FilterType  string
+	MinPrice    float64
+	MaxPrice    float64
+	TickSize    float64
+	MinQty      float64
+	MaxQty      float64
+	StepSize    float64
+	MinNotional float64
+}
+
+type SymbolInfo struct {
+	Symbol             string
+	Status             string
+	BaseAsset          string
+	BaseAssetPrecision int
+	QuoteAsset         string
+	QuotePrecision     int
+	OrderTypes         []string
+	IcebergAllowed     bool
+	Filters            map[string]*FilterInfo
+}
+type ExchangeInfo struct {
+	Timezone        string
+	ServerTime      time.Time
+	RateLimits      []*RateLimit
+	ExchangeFilters []interface{}
+	Symbols         map[string]*SymbolInfo
 }
